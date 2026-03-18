@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { getSupabase } from "@/lib/supabase";
 import useStore from "@/store";
-import AuthForm from "@/components/AuthForm";
 import Canvas from "@/components/Canvas";
 import ThoughtInput from "@/components/ThoughtInput";
 import InsightPanel from "@/components/InsightPanel";
@@ -14,6 +13,7 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [authError, setAuthError] = useState(null);
 
   const user = useStore((s) => s.user);
   const setUser = useStore((s) => s.setUser);
@@ -28,10 +28,34 @@ export default function Home() {
   // ── Check auth on mount ──
   useEffect(() => {
     const sb = getSupabase();
-    sb.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user || null);
-      setAuthLoading(false);
-    });
+    const initAuth = async () => {
+      try {
+        const {
+          data: { session },
+        } = await sb.auth.getSession();
+
+        if (session?.user) {
+          setUser(session.user);
+          setAuthLoading(false);
+          return;
+        }
+
+        // No login/signup UI: sign in anonymously.
+        // Requires enabling "Anonymous" auth in Supabase.
+        const { data, error } = await sb.auth.signInAnonymously();
+        if (error) throw error;
+
+        setUser(data?.user || null);
+        setAuthLoading(false);
+      } catch (e) {
+        setAuthError(e?.message || "Authentication failed");
+        setUser(null);
+        setAuthLoading(false);
+      }
+    };
+
+    initAuth();
+
     const {
       data: { subscription },
     } = sb.auth.onAuthStateChange((_event, session) => {
@@ -64,12 +88,22 @@ export default function Home() {
     );
   }
 
-  // ── Not authenticated ──
-  if (!user) {
-    return <AuthForm onAuth={(u) => setUser(u)} />;
+  // ── Main app ──
+  if (!user && !authLoading) {
+    return (
+      <div className="min-h-screen bg-void flex items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
+          <div className="font-mono text-xs tracking-[4px] text-white/20 uppercase mb-3">
+            Authentication error
+          </div>
+          <div className="font-display text-white/70 text-sm leading-relaxed">
+            {authError || "No authenticated session. Enable Anonymous auth in Supabase."}
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  // ── Main app ──
   return (
     <div className="relative w-full h-screen bg-void overflow-hidden">
       {/* Atmospheric gradient */}
