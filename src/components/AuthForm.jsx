@@ -3,7 +3,6 @@ import { useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 
 export default function AuthForm({ onAuth }) {
-  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,19 +18,19 @@ export default function AuthForm({ onAuth }) {
     const sb = getSupabase();
 
     try {
-      if (mode === "login") {
-        const { data, error } = await sb.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        onAuth(data.user);
-      } else {
-        const { data, error } = await sb.auth.signUp({ email, password });
-        if (error) throw error;
-        if (data.user && !data.session) {
-          setMessage("Check your email to confirm your account.");
-        } else if (data.user) {
-          onAuth(data.user);
-        }
-      }
+      // Signup-only UX: no separate login screen.
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+
+      // Immediately attempt to create a session via password sign-in.
+      // If your Supabase project still requires email confirmation, this will fail with the real error.
+      const {
+        data: signInData,
+        error: signInError,
+      } = await sb.auth.signInWithPassword({ email, password });
+
+      if (signInError) throw signInError;
+      onAuth(signInData.user || data?.user);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -105,17 +104,9 @@ export default function AuthForm({ onAuth }) {
                        hover:bg-white/[0.06] hover:border-accent-blue/20
                        disabled:opacity-40 transition-all"
           >
-            {loading ? "..." : mode === "login" ? "Enter" : "Create Account"}
+            {loading ? "..." : "Create Account"}
           </button>
         </form>
-
-        <button
-          onClick={() => setMode(mode === "login" ? "signup" : "login")}
-          className="mt-6 w-full text-center font-mono text-[10px] tracking-wider
-                     text-white/20 hover:text-white/40 transition-colors"
-        >
-          {mode === "login" ? "Don't have an account? Sign up" : "Already have an account? Log in"}
-        </button>
       </div>
     </div>
   );
