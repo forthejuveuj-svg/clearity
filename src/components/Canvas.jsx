@@ -77,7 +77,7 @@ export default function Canvas({ connectMode, connectSource, onCanvasClick, onNo
         ...n,
         x: n.position_x || cx + (Math.random() - 0.5) * 200,
         y: n.position_y || cy + (Math.random() - 0.5) * 200,
-        radius: Math.min(16 + (n.text?.length || 0) * 0.3, 36),
+        radius: Math.min(20 + (n.text?.length || 0) * 0.35, 42),
       };
     });
 
@@ -197,22 +197,30 @@ export default function Canvas({ connectMode, connectSource, onCanvasClick, onNo
         const cy2 = my + dx * 0.1;
         ctx.quadraticCurveTo(cx2, cy2, tgt.x, tgt.y);
 
-        ctx.strokeStyle = `rgba(100,140,200,${(0.06 + strength * 0.12) * linkAlpha})`;
-        ctx.lineWidth = 0.5 + strength * 1.2;
+        // Gradient line between source and target colors
+        const srcCfg = TYPE_CONFIG[src.node_type] || TYPE_CONFIG.thought;
+        const tgtCfg = TYPE_CONFIG[tgt.node_type] || TYPE_CONFIG.thought;
+        const srcRgb = hexToRgb(srcCfg.color);
+        const tgtRgb = hexToRgb(tgtCfg.color);
+        const grad = ctx.createLinearGradient(src.x, src.y, tgt.x, tgt.y);
+        grad.addColorStop(0, `rgba(${srcRgb.r},${srcRgb.g},${srcRgb.b},${(0.08 + strength * 0.15) * linkAlpha})`);
+        grad.addColorStop(1, `rgba(${tgtRgb.r},${tgtRgb.g},${tgtRgb.b},${(0.08 + strength * 0.15) * linkAlpha})`);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 0.8 + strength * 1.5;
         if (strength < 0.3) ctx.setLineDash([3, 6]);
         ctx.stroke();
 
-        // ── Edge label ──
+        // ── Edge label (short type only, shown on hover-nearby) ──
         const connType = link.connection_type;
-        const labelText = link.label || CONNECTION_LABELS[connType] || connType;
+        const labelText = CONNECTION_LABELS[connType] || connType;
         if (labelText && linkAlpha > 0.3) {
           const labelX = cx2;
           const labelY = cy2;
-          ctx.font = `8px "DM Mono", monospace`;
+          ctx.font = `7px "DM Mono", monospace`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillStyle = `rgba(120,150,200,${0.25 * linkAlpha})`;
-          ctx.fillText(labelText, labelX, labelY);
+          ctx.fillStyle = `rgba(150,170,220,${0.18 * linkAlpha})`;
+          ctx.fillText(labelText, labelX, labelY - 1);
         }
 
         ctx.restore();
@@ -258,41 +266,54 @@ export default function Canvas({ connectMode, connectSource, onCanvasClick, onNo
         const baseAlpha = (isResolved ? 0.25 : 1) * nodeAlpha;
 
         ctx.save();
-        if ((isHook || isHover || isConnectSource) && nodeAlpha > 0.3) {
-          ctx.shadowColor = isConnectSource ? "#64FFDA" : cfg.color;
-          ctx.shadowBlur = isConnectSource ? 35 : isHook ? 30 : 20;
+
+        // Always add subtle glow to every node
+        if (nodeAlpha > 0.3) {
+          ctx.shadowColor = cfg.color;
+          ctx.shadowBlur = isConnectSource ? 40 : isHook ? 35 : isHover ? 28 : 15;
         }
 
-        // Outer glow ring for hooks
-        if (isHook && !isResolved && nodeAlpha > 0.3) {
+        // Outer ambient glow (all nodes get this)
+        if (!isResolved && nodeAlpha > 0.3) {
           ctx.beginPath();
-          ctx.arc(node.x, node.y, drawR * 1.6, 0, Math.PI * 2);
-          const pulseAlpha = 0.08 + Math.sin(t * 2) * 0.06;
-          ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${pulseAlpha * nodeAlpha})`;
+          ctx.arc(node.x, node.y, drawR * 1.8, 0, Math.PI * 2);
+          const ambientAlpha = isHook
+            ? 0.1 + Math.sin(t * 2) * 0.06
+            : 0.04 + Math.sin(t * 1.2 + node.y * 0.01) * 0.02;
+          ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${ambientAlpha * nodeAlpha})`;
           ctx.fill();
         }
 
         // Blocker pulse
         if (node.node_type === "blocker" && !isResolved && nodeAlpha > 0.3) {
-          const pulseR = drawR * (1.3 + Math.sin(t * 3) * 0.2);
+          const pulseR = drawR * (1.4 + Math.sin(t * 3) * 0.25);
           ctx.beginPath();
           ctx.arc(node.x, node.y, pulseR, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${0.04 * nodeAlpha})`;
+          ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${0.06 * nodeAlpha})`;
           ctx.fill();
         }
+
+        // Inner gradient fill
+        const innerGrad = ctx.createRadialGradient(
+          node.x - drawR * 0.2, node.y - drawR * 0.2, 0,
+          node.x, node.y, drawR
+        );
+        innerGrad.addColorStop(0, `rgba(${rgb.r},${rgb.g},${rgb.b},${0.15 * baseAlpha})`);
+        innerGrad.addColorStop(0.7, `rgba(${rgb.r},${rgb.g},${rgb.b},${0.06 * baseAlpha})`);
+        innerGrad.addColorStop(1, `rgba(${rgb.r},${rgb.g},${rgb.b},${0.02 * baseAlpha})`);
 
         // Core orb
         ctx.beginPath();
         ctx.arc(node.x, node.y, drawR, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${0.06 * baseAlpha})`;
+        ctx.fillStyle = innerGrad;
         ctx.fill();
-        ctx.strokeStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${(isHover ? 0.7 : 0.3) * baseAlpha})`;
-        ctx.lineWidth = isHover ? 1.5 : 0.8;
+        ctx.strokeStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${(isHover ? 0.8 : 0.4) * baseAlpha})`;
+        ctx.lineWidth = isHover ? 2 : 1;
         ctx.stroke();
 
         // Type symbol
-        ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${0.6 * baseAlpha})`;
-        ctx.font = `${drawR * 0.5}px "Newsreader", Georgia, serif`;
+        ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${0.75 * baseAlpha})`;
+        ctx.font = `${drawR * 0.55}px "Newsreader", Georgia, serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(cfg.symbol, node.x, node.y);

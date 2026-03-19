@@ -235,13 +235,17 @@ export default function Home() {
 
   return (
     <div className="relative w-full h-screen h-[100dvh] bg-void overflow-hidden">
-      {/* Atmospheric gradient */}
+      {/* Atmospheric gradient — layered for depth */}
       <div
         className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000"
         style={{
-          background: `radial-gradient(ellipse at 50% 45%, rgba(40,50,100,${
-            Math.min(0.03 + nodes.length * 0.008, 0.1)
-          }) 0%, transparent 60%)`,
+          background: [
+            `radial-gradient(ellipse at 50% 40%, rgba(30,40,90,${
+              Math.min(0.05 + nodes.length * 0.01, 0.12)
+            }) 0%, transparent 55%)`,
+            `radial-gradient(ellipse at 20% 80%, rgba(60,30,80,0.04) 0%, transparent 50%)`,
+            `radial-gradient(ellipse at 80% 20%, rgba(20,50,80,0.03) 0%, transparent 50%)`,
+          ].join(", "),
         }}
       />
 

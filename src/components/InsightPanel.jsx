@@ -33,7 +33,7 @@ export default function InsightPanel() {
   if (nodes.length < 2 && !isAnalyzing) return null;
 
   return (
-    <div className="absolute top-12 sm:top-4 right-2 sm:right-4 w-56 sm:w-72 z-20 flex flex-col gap-2">
+    <div className="absolute top-12 sm:top-14 right-2 sm:right-3 w-48 sm:w-60 z-20 flex flex-col gap-1.5">
       {/* Header */}
       <div className="flex items-center justify-between px-1 mb-1">
         <button
