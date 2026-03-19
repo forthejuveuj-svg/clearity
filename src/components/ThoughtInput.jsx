@@ -24,7 +24,7 @@ export default function ThoughtInput({ onOpenSettings }) {
   };
 
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-full max-w-xl px-5">
+    <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 w-full max-w-xl px-3 sm:px-5">
       {/* Error */}
       {(error || decomposeError) && (
         <div
@@ -38,7 +38,7 @@ export default function ThoughtInput({ onOpenSettings }) {
       {/* Input bar */}
       <div
         className="flex items-center gap-2 bg-void-light/80 backdrop-blur-2xl
-                    border border-white/[0.06] rounded-2xl px-5 py-1
+                    border border-white/[0.06] rounded-2xl px-3 sm:px-5 py-1
                     focus-within:border-accent-blue/20 transition-colors"
       >
         <textarea
@@ -53,11 +53,11 @@ export default function ThoughtInput({ onOpenSettings }) {
           }}
           placeholder={
             nodes.length === 0
-              ? "What's on your mind? Dump it here — messy is fine..."
+              ? "What's on your mind? Dump it here..."
               : "Add more thoughts..."
           }
           rows={1}
-          className="flex-1 bg-transparent border-none text-white/90 font-display text-base
+          className="flex-1 bg-transparent border-none text-white/90 font-display text-sm sm:text-base
                      resize-none py-3 leading-relaxed placeholder:text-white/15"
           style={{ minHeight: 44, maxHeight: 120 }}
           onInput={(e) => {
@@ -90,19 +90,19 @@ export default function ThoughtInput({ onOpenSettings }) {
       </div>
 
       {/* Status bar */}
-      <div className="flex items-center justify-center gap-4 mt-3">
+      <div className="flex items-center justify-center gap-4 mt-2 sm:mt-3">
         {isDecomposing && (
           <span className="font-mono text-[10px] tracking-wider text-accent-blue/40 animate-pulse">
             DECOMPOSING YOUR THOUGHTS...
           </span>
         )}
         {!isDecomposing && nodes.length === 0 && (
-          <span className="font-mono text-[10px] tracking-wider text-white/10">
-            PRESS ENTER TO DECOMPOSE · SHIFT+ENTER FOR NEW LINE
+          <span className="font-mono text-[9px] sm:text-[10px] tracking-wider text-white/10">
+            ENTER TO DECOMPOSE · SHIFT+ENTER NEW LINE
           </span>
         )}
         {!isDecomposing && nodes.length > 0 && (
-          <span className="font-mono text-[10px] tracking-wider text-white/10">
+          <span className="font-mono text-[9px] sm:text-[10px] tracking-wider text-white/10 text-center">
             {nodes.length} thought{nodes.length !== 1 ? "s" : ""} · DOUBLE-CLICK TO FOCUS ·
             RIGHT-CLICK FOR OPTIONS
           </span>

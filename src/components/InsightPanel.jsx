@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import useStore from "@/store";
 
 const SEVERITY_COLORS = {
@@ -27,16 +28,20 @@ export default function InsightPanel() {
   const dismissInsight = useStore((s) => s.dismissInsight);
   const analyzeCanvas = useStore((s) => s.analyzeCanvas);
   const nodes = useStore((s) => s.nodes);
+  const [collapsed, setCollapsed] = useState(false);
 
   if (nodes.length < 2 && !isAnalyzing) return null;
 
   return (
-    <div className="absolute top-4 right-4 w-72 z-20 flex flex-col gap-2">
+    <div className="absolute top-12 sm:top-4 right-2 sm:right-4 w-56 sm:w-72 z-20 flex flex-col gap-2">
       {/* Header */}
       <div className="flex items-center justify-between px-1 mb-1">
-        <span className="font-mono text-[9px] tracking-[2px] text-white/20 uppercase">
-          AI Observations
-        </span>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="font-mono text-[9px] tracking-[2px] text-white/20 uppercase hover:text-white/30 transition-colors"
+        >
+          {collapsed ? "▸ " : ""}AI Observations
+        </button>
         <button
           onClick={analyzeCanvas}
           disabled={isAnalyzing || nodes.length < 2}
@@ -47,68 +52,71 @@ export default function InsightPanel() {
         </button>
       </div>
 
-      {/* Cognitive state badge */}
-      {cognitiveState && (
-        <div
-          className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.04]"
-          style={{ animation: "fadeSlideIn 0.3s ease both" }}
-        >
-          <div className="font-mono text-[9px] tracking-wider text-white/20 mb-1">
-            MIND STATE
-          </div>
-          <div className="font-display text-sm text-white/50 capitalize">
-            {cognitiveState}
-          </div>
-          {overallObservation && (
-            <div className="font-display text-xs text-white/30 mt-1 leading-relaxed">
-              {overallObservation}
+      {!collapsed && (
+        <>
+          {/* Cognitive state badge */}
+          {cognitiveState && (
+            <div
+              className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.04]"
+              style={{ animation: "fadeSlideIn 0.3s ease both" }}
+            >
+              <div className="font-mono text-[9px] tracking-wider text-white/20 mb-1">
+                MIND STATE
+              </div>
+              <div className="font-display text-sm text-white/50 capitalize">
+                {cognitiveState}
+              </div>
+              {overallObservation && (
+                <div className="font-display text-xs text-white/30 mt-1 leading-relaxed">
+                  {overallObservation}
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Insights */}
-      {insights.map((ins, i) => {
-        const colors = SEVERITY_COLORS[ins.severity] || SEVERITY_COLORS.medium;
-        return (
-          <div
-            key={ins.id}
-            className="group relative rounded-lg backdrop-blur-xl px-3 py-2.5"
-            style={{
-              background: colors.bg,
-              borderLeft: `2px solid ${colors.border}50`,
-              border: `1px solid ${colors.border}15`,
-              animation: `fadeSlideIn 0.4s ease ${i * 0.1}s both`,
-            }}
-          >
-            {/* Dismiss button */}
-            <button
-              onClick={() => dismissInsight(ins.id)}
-              className="absolute top-2 right-2 text-white/10 hover:text-white/30
-                         text-xs transition-colors opacity-0 group-hover:opacity-100"
-            >
-              ×
-            </button>
+          {/* Insights */}
+          {insights.map((ins, i) => {
+            const colors = SEVERITY_COLORS[ins.severity] || SEVERITY_COLORS.medium;
+            return (
+              <div
+                key={ins.id}
+                className="group relative rounded-lg backdrop-blur-xl px-3 py-2.5"
+                style={{
+                  background: colors.bg,
+                  borderLeft: `2px solid ${colors.border}50`,
+                  border: `1px solid ${colors.border}15`,
+                  animation: `fadeSlideIn 0.4s ease ${i * 0.1}s both`,
+                }}
+              >
+                <button
+                  onClick={() => dismissInsight(ins.id)}
+                  className="absolute top-2 right-2 text-white/10 hover:text-white/30
+                             text-xs transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  ×
+                </button>
 
-            <div
-              className="font-mono text-[9px] tracking-wider uppercase mb-1"
-              style={{ color: `${colors.border}80` }}
-            >
-              {TYPE_LABELS[ins.insight_type] || ins.insight_type}
+                <div
+                  className="font-mono text-[9px] tracking-wider uppercase mb-1"
+                  style={{ color: `${colors.border}80` }}
+                >
+                  {TYPE_LABELS[ins.insight_type] || ins.insight_type}
+                </div>
+                <div className="font-display text-xs text-white/70 leading-relaxed">
+                  {ins.text}
+                </div>
+              </div>
+            );
+          })}
+
+          {isAnalyzing && (
+            <div className="px-3 py-2 rounded-lg bg-white/[0.01] border border-white/[0.03]">
+              <div className="font-mono text-[10px] text-accent-blue/30 animate-pulse">
+                Observing your thinking...
+              </div>
             </div>
-            <div className="font-display text-xs text-white/70 leading-relaxed">
-              {ins.text}
-            </div>
-          </div>
-        );
-      })}
-
-      {isAnalyzing && (
-        <div className="px-3 py-2 rounded-lg bg-white/[0.01] border border-white/[0.03]">
-          <div className="font-mono text-[10px] text-accent-blue/30 animate-pulse">
-            Observing your thinking...
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );

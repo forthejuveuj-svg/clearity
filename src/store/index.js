@@ -5,6 +5,7 @@ import {
   buildDecomposePrompt,
   buildAnalyzePrompt,
   buildFocusPrompt,
+  buildPatternPrompt,
 } from "../lib/prompts";
 
 const useStore = create((set, get) => ({
@@ -41,6 +42,7 @@ const useStore = create((set, get) => ({
       connections: [],
       insights: [],
       focusNode: null,
+      focusSessions: [],
     });
     if (id) {
       await db.updateWorkspace(id, { last_opened_at: new Date().toISOString() });
@@ -64,12 +66,13 @@ const useStore = create((set, get) => ({
   loadWorkspaceData: async (workspaceId) => {
     set({ loadingNodes: true });
     try {
-      const [nodes, connections, insights] = await Promise.all([
+      const [nodes, connections, insights, focusSessions] = await Promise.all([
         db.fetchNodes(workspaceId),
         db.fetchConnections(workspaceId),
         db.fetchInsights(workspaceId),
+        db.fetchFocusSessions(workspaceId).catch(() => []),
       ]);
-      set({ nodes, connections, insights, loadingNodes: false });
+      set({ nodes, connections, insights, focusSessions, loadingNodes: false });
     } catch (e) {
       console.error("Failed to load workspace:", e);
       set({ loadingNodes: false });
@@ -201,13 +204,39 @@ const useStore = create((set, get) => ({
   focusNode: null,
   focusSteps: [],
   focusLoading: false,
+  focusSessions: [],
+  focusStartTime: null,
 
   enterFocus: (node) => {
-    set({ focusNode: node, focusSteps: [] });
+    set({ focusNode: node, focusSteps: [], focusStartTime: Date.now() });
   },
 
-  exitFocus: () => {
-    set({ focusNode: null, focusSteps: [] });
+  exitFocus: async () => {
+    const { focusNode, focusSteps, activeWorkspaceId, focusStartTime } = get();
+    // Save focus session if there were answers
+    if (focusNode && focusSteps.some((s) => s.answer) && activeWorkspaceId) {
+      try {
+        const session = await db.saveFocusSession({
+          workspace_id: activeWorkspaceId,
+          anchor_node_id: focusNode.id,
+          steps: focusSteps.map((s) => ({
+            question: s.question,
+            answer: s.answer,
+            timestamp: new Date().toISOString(),
+          })),
+          outcome: focusSteps.length >= 5 && focusSteps.every((s) => s.answer)
+            ? "completed"
+            : "partial",
+          duration_seconds: focusStartTime
+            ? Math.round((Date.now() - focusStartTime) / 1000)
+            : null,
+        });
+        set((s) => ({ focusSessions: [session, ...s.focusSessions] }));
+      } catch (e) {
+        console.error("Failed to save focus session:", e);
+      }
+    }
+    set({ focusNode: null, focusSteps: [], focusStartTime: null });
   },
 
   generateFocusQuestion: async () => {
@@ -259,6 +288,92 @@ const useStore = create((set, get) => ({
     }));
   },
 
+  // ── Cross-workspace cognitive patterns ──
+  cognitivePatterns: [],
+  patternsLoading: false,
+
+  detectPatterns: async () => {
+    const { workspaces } = get();
+    if (workspaces.length < 2) return;
+
+    set({ patternsLoading: true });
+    try {
+      // Gather nodes from recent workspaces
+      const recentSessions = [];
+      for (const ws of workspaces.slice(0, 5)) {
+        const nodes = await db.fetchNodes(ws.id);
+        if (nodes.length > 0) {
+          recentSessions.push({ workspace_title: ws.title, nodes });
+        }
+      }
+
+      if (recentSessions.length < 2) {
+        set({ patternsLoading: false });
+        return;
+      }
+
+      const prompt = buildPatternPrompt(recentSessions);
+      const result = await callAIJson(prompt, { temperature: 0.4 });
+
+      if (result.patterns && result.patterns.length > 0) {
+        const saved = await db.saveCognitivePatterns(result.patterns);
+        set({ cognitivePatterns: saved, patternsLoading: false });
+      } else {
+        set({ patternsLoading: false });
+      }
+    } catch (e) {
+      console.error("Pattern detection failed:", e);
+      set({ patternsLoading: false });
+    }
+  },
+
+  loadCognitivePatterns: async () => {
+    try {
+      const patterns = await db.fetchCognitivePatterns();
+      set({ cognitivePatterns: patterns });
+    } catch (e) {
+      console.error("Failed to load patterns:", e);
+    }
+  },
+
+  // ── Manual node creation ──
+  addManualNode: async (text, nodeType, x, y) => {
+    const { activeWorkspaceId } = get();
+    if (!activeWorkspaceId) return;
+
+    const node = await db.createNode(activeWorkspaceId, {
+      text,
+      node_type: nodeType || "thought",
+      confidence: 1.0,
+      emotional_valence: 0,
+      position_x: x,
+      position_y: y,
+      is_hook: false,
+    });
+
+    set((s) => ({ nodes: [...s.nodes, node] }));
+    return node;
+  },
+
+  // ── Manual connection creation ──
+  addManualConnection: async (sourceId, targetId, connectionType) => {
+    const { activeWorkspaceId } = get();
+    if (!activeWorkspaceId) return;
+
+    const conn = await db.createConnection({
+      workspace_id: activeWorkspaceId,
+      source_node_id: sourceId,
+      target_node_id: targetId,
+      connection_type: connectionType || "related",
+      strength: 0.7,
+      label: null,
+      is_ai_generated: false,
+    });
+
+    set((s) => ({ connections: [...s.connections, conn] }));
+    return conn;
+  },
+
   // ── Node operations ──
   updateNodePosition: (id, x, y) => {
     set((s) => ({
@@ -287,6 +402,25 @@ const useStore = create((set, get) => ({
   dismissInsight: async (id) => {
     await db.dismissInsight(id);
     set((s) => ({ insights: s.insights.filter((i) => i.id !== id) }));
+  },
+
+  // ── Search/filter ──
+  searchQuery: "",
+  searchFilter: null, // null = all, or a node_type string
+  setSearchQuery: (q) => set({ searchQuery: q }),
+  setSearchFilter: (f) => set({ searchFilter: f }),
+
+  getFilteredNodes: () => {
+    const { nodes, searchQuery, searchFilter } = get();
+    let filtered = nodes;
+    if (searchFilter) {
+      filtered = filtered.filter((n) => n.node_type === searchFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter((n) => n.text?.toLowerCase().includes(q));
+    }
+    return filtered;
   },
 
   // ── Save positions periodically ──

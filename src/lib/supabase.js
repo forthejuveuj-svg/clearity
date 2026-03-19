@@ -192,6 +192,69 @@ export async function saveFocusSession(session) {
   return data;
 }
 
+export async function fetchFocusSessions(workspaceId) {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("focus_sessions")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+// ── Cognitive Patterns ──
+export async function fetchCognitivePatterns() {
+  const sb = getSupabase();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  const { data, error } = await sb
+    .from("cognitive_patterns")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("last_seen_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function saveCognitivePatterns(patterns) {
+  if (!patterns.length) return [];
+  const sb = getSupabase();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  // Upsert by pattern_type + description
+  const rows = patterns.map((p) => ({
+    user_id: user.id,
+    pattern_type: p.pattern_type,
+    description: p.description,
+    frequency: p.frequency || 1,
+    last_seen_at: new Date().toISOString(),
+  }));
+  const { data, error } = await sb
+    .from("cognitive_patterns")
+    .insert(rows)
+    .select();
+  if (error) throw error;
+  return data;
+}
+
+// ── Create single connection ──
+export async function createConnection(connection) {
+  const sb = getSupabase();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  const { data, error } = await sb
+    .from("node_connections")
+    .insert({ ...connection, user_id: user.id })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // ── Save node positions (batch) ──
 export async function saveNodePositions(nodes) {
   const sb = getSupabase();
